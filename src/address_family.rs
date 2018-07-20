@@ -18,7 +18,13 @@ pub trait AddressFamily {
         #[cfg(not(windows))]
         {
             info!("Reuse port");
-            builder.reuse_port(true)?;
+            match builder.reuse_port(true) {
+                Ok(_) => {}
+                Err(e) => {
+                    // try to continue
+                    warn!("Cannot reuse port: {:?}", e);
+                }
+            }
         }
         info!("Bind socket");
         let socket = builder.bind(&addr)?;
