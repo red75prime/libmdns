@@ -49,13 +49,13 @@ impl<'a> Name<'a> {
                 return Ok((Name::FromPacket { labels: &data[..pos+2], original: original }, pos + 2));
             } else if byte & 0b1100_0000 == 0 {
                 let end = pos + byte as usize + 1;
+                if data.len() <= end {
+                    return Err(Error::UnexpectedEOF);
+                }
                 if from_utf8(&data[pos+1..end]).is_err() {
                     return Err(Error::LabelIsNotAscii);
                 }
                 pos = end;
-                if data.len() <= pos {
-                    return Err(Error::UnexpectedEOF);
-                }
                 continue;
             } else {
                 return Err(Error::UnknownLabelFormat);

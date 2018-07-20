@@ -511,6 +511,14 @@ mod test {
         Packet::parse(b"HackHackHackHack").unwrap_err();
         Packet::parse(b"HackHackHackHackHackHack").unwrap_err();
         Packet::parse(b"HackHackHackHackHackHackHackHackHackHackHackHack").unwrap_err();
-        Packet::parse(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap_err();
+        for len in 0 .. 100 {
+            for byte in 0 .. 256u16 {
+                let byte = byte as u8;
+                let packet = vec![byte; len];
+                println!("Packet len: {}, content: {}", len, byte);
+                // ignore result, panic testing
+                let _ = Packet::parse(&packet);
+            }
+        }
     }
 }
