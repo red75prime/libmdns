@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use byteorder::{ByteOrder, BigEndian, WriteBytesExt};
 
-use dns_parser::{Opcode, ResponseCode, Header, Name, RRData, QueryType, QueryClass};
+use super::{Opcode, ResponseCode, Header, Name, RRData, QueryType, QueryClass};
 
 pub enum Questions {}
 pub enum Answers {}
