@@ -2,8 +2,8 @@ use std::i32;
 
 use byteorder::{BigEndian, ByteOrder};
 
-use dns_parser::{Header, Packet, Error, Question, Name, QueryType, QueryClass};
-use dns_parser::{Type, Class, ResourceRecord, RRData};
+use super::{Header, Packet, Error, Question, Name, QueryType, QueryClass};
+use super::{Type, Class, ResourceRecord, RRData};
 
 
 impl<'a> Packet<'a> {
