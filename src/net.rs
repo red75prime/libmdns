@@ -5,23 +5,22 @@ use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use byteorder::{BigEndian, ByteOrder};
 
 pub fn gethostname() -> io::Result<String> {
-    unsafe {
-        let mut name = Vec::new();
-        name.resize(65, 0u8);
+    let mut name = vec![0u8; 65];
 
-        let ptr = name.as_mut_ptr() as *mut c_char;
-        let cap = name.len() as size_t;
+    let ptr = name.as_mut_ptr() as *mut c_char;
+    let cap = name.len() as size_t;
 
-        let ret = libc::gethostname(ptr, cap);
-        if ret < 0 {
-            return Err(io::Error::last_os_error());
-        }
-
-        let len = name.iter().position(|byte| *byte == 0).unwrap_or(cap);
-        name.resize(len, 0);
-
-        Ok(String::from_utf8_lossy(&name).into_owned())
+    // Calling gethostname with these parameters is safe
+    let ret = unsafe{ libc::gethostname(ptr, cap) };
+    if ret < 0 {
+        return Err(io::Error::last_os_error());
     }
+
+    if let Some(len) = name.iter().position(|byte| *byte == 0) {
+        name.truncate(len);
+    }
+
+    Ok(String::from_utf8_lossy(&name).into_owned())
 }
 
 pub struct GetIfAddrs(*mut libc::ifaddrs, *mut libc::ifaddrs);
