@@ -61,7 +61,7 @@ impl Responder {
     }
 
     pub fn new() -> io::Result<Responder> {
-        info!("Creating new Responder");
+        info!("Responder::new()");
         let (tx, rx) = std::sync::mpsc::sync_channel(0);
         thread::Builder::new()
             .name("mdns-responder".to_owned())
@@ -81,6 +81,7 @@ impl Responder {
     }
 
     pub fn spawn(handle: &Handle) -> io::Result<Responder> {
+        info!("Responder::spawn()");
         let (responder, task) = Responder::with_handle(handle)?;
         handle.spawn(task.map_err(|e| {
             warn!("mdns error {:?}", e);
@@ -90,6 +91,7 @@ impl Responder {
     }
 
     pub fn with_handle(handle: &Handle) -> io::Result<(Responder, ResponderTask)> {
+        info!("Responder::with_handle()");
         let mut hostname = try!(net::gethostname());
         if !hostname.ends_with(".local") {
             hostname.push_str(".local");
