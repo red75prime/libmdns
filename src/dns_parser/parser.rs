@@ -502,4 +502,15 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn test_absense_of_panics_on_nonsense_queries() {
+        Packet::parse(b"Hack").unwrap_err();
+        Packet::parse(b"HackHack").unwrap_err();
+        Packet::parse(b"HackHackHack").unwrap_err();
+        Packet::parse(b"HackHackHackHack").unwrap_err();
+        Packet::parse(b"HackHackHackHackHackHack").unwrap_err();
+        Packet::parse(b"HackHackHackHackHackHackHackHackHackHackHackHack").unwrap_err();
+        Packet::parse(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap_err();
+    }
 }
