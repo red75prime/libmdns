@@ -61,6 +61,7 @@ impl Responder {
     }
 
     pub fn new() -> io::Result<Responder> {
+        info!("Creating new Responder");
         let (tx, rx) = std::sync::mpsc::sync_channel(0);
         thread::Builder::new()
             .name("mdns-responder".to_owned())
