@@ -16,7 +16,7 @@ log = "0.4"
 multimap = "0.4"
 net2 = "0.2"
 nix = "0.9"
-rand = "0.5"
+rand = "0.4"
 tokio-core = "0.1"
 quick-error = "1.2"
 
