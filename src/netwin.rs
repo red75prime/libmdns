@@ -2,11 +2,10 @@ extern crate winapi;
 extern crate kernel32;
 extern crate socket2;
 
-use libc;
 use std;
 use std::net::IpAddr;
 use std::io;
-use self::winapi::{AF_UNSPEC, ERROR_SUCCESS, ERROR_BUFFER_OVERFLOW, ULONG, PVOID, DWORD, PCHAR, SOCKADDR};
+use self::winapi::{AF_UNSPEC, ERROR_SUCCESS, ERROR_BUFFER_OVERFLOW, ULONG, PVOID, DWORD, PCHAR};
 
 pub fn gethostname() -> io::Result<String> {
   const MAX_COMPUTERNAME_LENGTH: usize = 15;
