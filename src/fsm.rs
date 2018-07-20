@@ -132,11 +132,16 @@ impl <AF: AddressFamily> FSM<AF> {
                 builder = self.add_ip_rr(services.get_hostname(), builder, DEFAULT_TTL);
             }
             QueryType::PTR => {
+                let mut found = false;
                 for svc in services.find_by_type(&question.qname) {
                     builder = svc.add_ptr_rr(builder, DEFAULT_TTL);
                     builder = svc.add_srv_rr(services.get_hostname(), builder, DEFAULT_TTL);
                     builder = svc.add_txt_rr(builder, DEFAULT_TTL);
                     builder = self.add_ip_rr(services.get_hostname(), builder, DEFAULT_TTL);
+                    found = true;
+                }
+                if !found {
+                    trace!("Not found. IN PTR {}", &question.qname);
                 }
             }
             QueryType::SRV => {
