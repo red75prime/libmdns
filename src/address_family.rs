@@ -11,11 +11,18 @@ pub enum Inet6 {}
 pub trait AddressFamily {
     fn bind() -> io::Result<UdpSocket> {
         let addr = SocketAddr::new(Self::any_addr(), MDNS_PORT);
+        info!("Socket builder");
         let builder = Self::socket_builder()?;
+        info!("Reuse address");
         builder.reuse_address(true)?;
         #[cfg(not(windows))]
-        builder.reuse_port(true)?;
+        {
+            info!("Reuse port");
+            builder.reuse_port(true)?;
+        }
+        info!("Bind socket");
         let socket = builder.bind(&addr)?;
+        info!("Join multicast");
         Self::join_multicast(&socket)?;
         Ok(socket)
     }

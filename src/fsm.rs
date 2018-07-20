@@ -38,7 +38,9 @@ impl <AF: AddressFamily> FSM<AF> {
     pub fn new(handle: &Handle, services: &Services)
         -> io::Result<(FSM<AF>, mpsc::UnboundedSender<Command>)>
     {
+        info!("Binding socket");
         let std_socket = AF::bind()?;
+        info!("Creating async socket");
         let socket = UdpSocket::from_socket(std_socket, handle)?;
         let (tx, rx) = mpsc::unbounded();
 
