@@ -2,10 +2,11 @@ extern crate winapi;
 extern crate kernel32;
 extern crate socket2;
 
+use libc;
 use std;
 use std::net::IpAddr;
 use std::io;
-use self::winapi::{AF_UNSPEC, ERROR_SUCCESS, ERROR_BUFFER_OVERFLOW, ULONG, PVOID, DWORD, PCHAR};
+use self::winapi::{AF_UNSPEC, ERROR_SUCCESS, ERROR_BUFFER_OVERFLOW, ULONG, PVOID, DWORD, PCHAR, SOCKADDR};
 
 pub fn gethostname() -> io::Result<String> {
   const MAX_COMPUTERNAME_LENGTH: usize = 15;
@@ -43,7 +44,7 @@ impl InterfaceAddress {
 }
 
 pub fn getifaddrs() -> Vec<InterfaceAddress> {
-   getifaddrs_int().unwrap() 
+   getifaddrs_int().unwrap()
 }
 
 #[repr(C)]
@@ -64,7 +65,7 @@ struct PIP_ADAPTER_UNICAST_ADDRESS {
 #[repr(C)]
 struct PIP_ADAPTER_ADDRESSES {
   length: ULONG,
-  if_index: DWORD, 
+  if_index: DWORD,
   next: *const PIP_ADAPTER_ADDRESSES,
   adapter_name: PCHAR,
   first_unicast_address: *const PIP_ADAPTER_UNICAST_ADDRESS,
@@ -82,14 +83,16 @@ extern "system" {
 }
 
 fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
-  unsafe {
     let mut buf_len: ULONG = 0;
-    let result = GetAdaptersAddresses(
-      AF_UNSPEC as u32, 
-      0, 
-      std::ptr::null_mut(), 
-      std::ptr::null_mut(), 
-      &mut buf_len as *mut ULONG);
+    let result =
+      unsafe {
+        GetAdaptersAddresses(
+          AF_UNSPEC as u32,
+          0,
+          std::ptr::null_mut(),
+          std::ptr::null_mut(),
+          &mut buf_len as *mut ULONG)
+      };
 
     assert!(result != ERROR_SUCCESS);
 
@@ -99,12 +102,15 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
 
     let mut adapters_addresses_buffer: Vec<u8> = vec![0; buf_len as usize];
     let mut adapter_addresses_ptr = adapters_addresses_buffer.as_mut_ptr() as *const Vec<u8> as *const PIP_ADAPTER_ADDRESSES;
-    let result = GetAdaptersAddresses(
-      AF_UNSPEC as u32, 
-      0,
-      std::ptr::null_mut(), 
-      adapter_addresses_ptr, 
-      &mut buf_len as *mut ULONG);
+    let result =
+      unsafe {
+        GetAdaptersAddresses(
+        AF_UNSPEC as u32,
+        0,
+        std::ptr::null_mut(),
+        adapter_addresses_ptr,
+        &mut buf_len as *mut ULONG)
+      };
 
     if result != ERROR_SUCCESS {
       return Err(io::Error::last_os_error());
@@ -112,7 +118,7 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
 
     let mut ret = vec![];
     while adapter_addresses_ptr != std::ptr::null_mut() {
-      let unicast_addresses = get_unicast_addresses((*adapter_addresses_ptr).first_unicast_address)?;
+      let unicast_addresses = unsafe{ get_unicast_addresses((*adapter_addresses_ptr).first_unicast_address) }?;
 
       for unicast_address in unicast_addresses.iter() {
         ret.push(InterfaceAddress {
@@ -121,11 +127,10 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
         });
       }
 
-      adapter_addresses_ptr = (*adapter_addresses_ptr).next;
+      unsafe{ adapter_addresses_ptr = (*adapter_addresses_ptr).next; }
     }
 
     Ok(ret)
-  }
 }
 
 unsafe fn get_unicast_addresses(unicast_addresses_ptr: *const PIP_ADAPTER_UNICAST_ADDRESS) -> io::Result<Vec<IpAddr>> {
@@ -144,8 +149,7 @@ unsafe fn get_unicast_addresses(unicast_addresses_ptr: *const PIP_ADAPTER_UNICAS
 }
 
 unsafe fn socket_address_to_ipaddr(socket_address: &SOCKET_ADDRESS) -> IpAddr {
-  let sockaddr = socket2::SockAddr::from_raw_parts(std::mem::transmute(socket_address.lp_sockaddr), 
-    socket_address.length);
+  let sockaddr = socket2::SockAddr::from_raw_parts(socket_address.lp_sockaddr as *const _, socket_address.length);
 
   sockaddr.as_inet()
     .map(|s| IpAddr::V4(*s.ip()))
