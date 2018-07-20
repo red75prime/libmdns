@@ -2,8 +2,8 @@ use std::i32;
 
 use byteorder::{BigEndian, ByteOrder};
 
-use super::{Header, Packet, Error, Question, Name, QueryType, QueryClass};
-use super::{Type, Class, ResourceRecord, RRData};
+use dns_parser::{Header, Packet, Error, Question, Name, QueryType, QueryClass};
+use dns_parser::{Type, Class, ResourceRecord, RRData};
 
 
 impl<'a> Packet<'a> {
@@ -87,14 +87,9 @@ fn parse_record<'a>(data: &'a [u8], offset: &mut usize) -> Result<ResourceRecord
 #[cfg(test)]
 mod test {
 
+    use dns_parser::{Opcode, ResponseCode};
     use std::net::{Ipv4Addr, Ipv6Addr};
-    use {Packet, Header};
-    use Opcode::*;
-    use ResponseCode::NoError;
-    use QueryType as QT;
-    use QueryClass as QC;
-    use Class as C;
-    use RRData;
+    use super::*;
 
     #[test]
     fn parse_example_query() {
@@ -104,20 +99,20 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 1573,
             query: true,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: false,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 0,
             nameservers: 0,
             additional: 0,
         });
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::A);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::A);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..], "example.com");
         assert_eq!(packet.answers.len(), 0);
     }
@@ -132,24 +127,24 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 1573,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 1,
             nameservers: 0,
             additional: 0,
         });
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::A);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::A);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..], "example.com");
         assert_eq!(packet.answers.len(), 1);
         assert_eq!(&packet.answers[0].name.to_string()[..], "example.com");
-        assert_eq!(packet.answers[0].cls, C::IN);
+        assert_eq!(packet.answers[0].cls, Class::IN);
         assert_eq!(packet.answers[0].ttl, 1272);
         match packet.answers[0].data {
             RRData::A(addr) => {
@@ -174,24 +169,24 @@ mod test {
          assert_eq!(packet.header, Header {
              id: 19184,
              query: false,
-             opcode: StandardQuery,
+             opcode: Opcode::StandardQuery,
              authoritative: false,
              truncated: false,
              recursion_desired: true,
              recursion_available: true,
-             response_code: NoError,
+             response_code: ResponseCode::NoError,
              questions: 1,
              answers: 1,
              nameservers: 1,
              additional: 0,
          });
          assert_eq!(packet.questions.len(), 1);
-         assert_eq!(packet.questions[0].qtype, QT::A);
-         assert_eq!(packet.questions[0].qclass, QC::IN);
+         assert_eq!(packet.questions[0].qtype, QueryType::A);
+         assert_eq!(packet.questions[0].qclass, QueryClass::IN);
          assert_eq!(&packet.questions[0].qname.to_string()[..], "www.skype.com");
          assert_eq!(packet.answers.len(), 1);
          assert_eq!(&packet.answers[0].name.to_string()[..], "www.skype.com");
-         assert_eq!(packet.answers[0].cls, C::IN);
+         assert_eq!(packet.answers[0].cls, Class::IN);
          assert_eq!(packet.answers[0].ttl, 3600);
          match packet.answers[0].data {
              RRData::CNAME(ref cname) => {
@@ -201,7 +196,7 @@ mod test {
          }
          assert_eq!(packet.nameservers.len(), 1);
          assert_eq!(&packet.nameservers[0].name.to_string()[..], "net");
-         assert_eq!(packet.nameservers[0].cls, C::IN);
+         assert_eq!(packet.nameservers[0].cls, Class::IN);
          assert_eq!(packet.nameservers[0].ttl, 120275);
          match packet.nameservers[0].data {
              RRData::NS(ref ns) => {
@@ -227,20 +222,20 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 40425,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 6,
             nameservers: 0,
             additional: 0,
         });
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::A);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::A);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..], "google.com");
         assert_eq!(packet.answers.len(), 6);
         let ips = vec![
@@ -253,7 +248,7 @@ mod test {
         ];
         for i in 0..6 {
             assert_eq!(&packet.answers[i].name.to_string()[..], "google.com");
-            assert_eq!(packet.answers[i].cls, C::IN);
+            assert_eq!(packet.answers[i].cls, Class::IN);
             assert_eq!(packet.answers[i].ttl, 239);
             match packet.answers[i].data {
                 RRData::A(addr) => {
@@ -272,20 +267,20 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 23513,
             query: true,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: false,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 0,
             nameservers: 0,
             additional: 0,
         });
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::SRV);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::SRV);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..],
             "_xmpp-server._tcp.gmail.com");
         assert_eq!(packet.answers.len(), 0);
@@ -309,20 +304,20 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 23513,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 5,
             nameservers: 0,
             additional: 0,
         });
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::SRV);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::SRV);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..],
             "_xmpp-server._tcp.gmail.com");
         assert_eq!(packet.answers.len(), 5);
@@ -336,7 +331,7 @@ mod test {
         for i in 0..5 {
             assert_eq!(&packet.answers[i].name.to_string()[..],
                 "_xmpp-server._tcp.gmail.com");
-            assert_eq!(packet.answers[i].cls, C::IN);
+            assert_eq!(packet.answers[i].cls, Class::IN);
             assert_eq!(packet.answers[i].ttl, 900);
             match *&packet.answers[i].data {
                 RRData::SRV { priority, weight, port, ref target } => {
@@ -364,20 +359,20 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 58344,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 5,
             nameservers: 0,
             additional: 0,
         });
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::MX);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::MX);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..],
             "gmail.com");
         assert_eq!(packet.answers.len(), 5);
@@ -391,7 +386,7 @@ mod test {
         for i in 0..5 {
             assert_eq!(&packet.answers[i].name.to_string()[..],
                 "gmail.com");
-            assert_eq!(packet.answers[i].cls, C::IN);
+            assert_eq!(packet.answers[i].cls, Class::IN);
             assert_eq!(packet.answers[i].ttl, 1148);
             match *&packet.answers[i].data {
                 RRData::MX { preference, ref exchange } => {
@@ -413,12 +408,12 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 43481,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 1,
             nameservers: 0,
@@ -426,12 +421,12 @@ mod test {
         });
 
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::AAAA);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::AAAA);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..], "google.com");
         assert_eq!(packet.answers.len(), 1);
         assert_eq!(&packet.answers[0].name.to_string()[..], "google.com");
-        assert_eq!(packet.answers[0].cls, C::IN);
+        assert_eq!(packet.answers[0].cls, Class::IN);
         assert_eq!(packet.answers[0].ttl, 139);
         match packet.answers[0].data {
             RRData::AAAA(addr) => {
@@ -461,12 +456,12 @@ mod test {
         assert_eq!(packet.header, Header {
             id: 64669,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 6,
             nameservers: 2,
@@ -474,12 +469,12 @@ mod test {
         });
 
         assert_eq!(packet.questions.len(), 1);
-        assert_eq!(packet.questions[0].qtype, QT::A);
-        assert_eq!(packet.questions[0].qclass, QC::IN);
+        assert_eq!(packet.questions[0].qtype, QueryType::A);
+        assert_eq!(packet.questions[0].qclass, QueryClass::IN);
         assert_eq!(&packet.questions[0].qname.to_string()[..], "cdn.sstatic.net");
         assert_eq!(packet.answers.len(), 6);
         assert_eq!(&packet.answers[0].name.to_string()[..], "cdn.sstatic.net");
-        assert_eq!(packet.answers[0].cls, C::IN);
+        assert_eq!(packet.answers[0].cls, Class::IN);
         assert_eq!(packet.answers[0].ttl, 102);
         match packet.answers[0].data {
             RRData::CNAME(ref cname) => {
@@ -497,7 +492,7 @@ mod test {
         ];
         for i in 1..6 {
             assert_eq!(&packet.answers[i].name.to_string()[..], "sstatic.net");
-            assert_eq!(packet.answers[i].cls, C::IN);
+            assert_eq!(packet.answers[i].cls, Class::IN);
             assert_eq!(packet.answers[i].ttl, 102);
             match packet.answers[i].data {
                 RRData::A(addr) => {

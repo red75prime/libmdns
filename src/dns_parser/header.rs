@@ -63,7 +63,7 @@ impl Header {
     /// When buffer size is not exactly 12 bytes
     pub fn write(&self, data: &mut [u8]) {
         if data.len() != 12 {
-            panic!("Header size is exactly 12 bytes");
+            panic!("Header size must be exactly 12 bytes");
         }
         let mut flags = 0u16;
         flags |= Into::<u16>::into(self.opcode)
@@ -148,10 +148,7 @@ impl Header {
 
 #[cfg(test)]
 mod test {
-
-    use {Header};
-    use Opcode::*;
-    use ResponseCode::NoError;
+    use super::*;
 
     #[test]
     fn parse_example_query() {
@@ -161,12 +158,12 @@ mod test {
         assert_eq!(header, Header {
             id: 1573,
             query: true,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: false,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 0,
             nameservers: 0,
@@ -184,12 +181,12 @@ mod test {
         assert_eq!(header, Header {
             id: 1573,
             query: false,
-            opcode: StandardQuery,
+            opcode: Opcode::StandardQuery,
             authoritative: false,
             truncated: false,
             recursion_desired: true,
             recursion_available: true,
-            response_code: NoError,
+            response_code: ResponseCode::NoError,
             questions: 1,
             answers: 1,
             nameservers: 0,
