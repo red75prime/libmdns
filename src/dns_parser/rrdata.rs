@@ -21,6 +21,42 @@ pub enum RRData<'a> {
     Unknown { typ: Type, data: &'a [u8] },
 }
 
+impl<'a> ::std::fmt::Display for RRData<'a> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        use self::RRData::*;
+
+        match self {
+            CNAME(name) => {
+                write!(fmt, "CNAME {}", name)
+            }
+            NS(name) => {
+                write!(fmt, "NS {}", name)
+            }
+            PTR(name) => {
+                write!(fmt, "PTR {}", name)
+            }
+            A(addr) => {
+                write!(fmt, "A {}", addr)
+            }
+            AAAA(addr) => {
+                write!(fmt, "NS {}", addr)
+            }
+            SRV{ priority, weight, port, target } => {
+                write!(fmt, "SRV {} {} {} {}", priority, weight, port, target)
+            }
+            MX { preference, exchange } => {
+                write!(fmt, "MX {} {}", preference, exchange)
+            }
+            TXT(txt) => {
+                write!(fmt, "TXT '{}'", String::from_utf8_lossy(txt))
+            }
+            Unknown{ typ, data } => {
+                write!(fmt, "{:?} '{}' {:?}", typ, String::from_utf8_lossy(data), data)
+            }
+        }
+    }
+}
+
 impl<'a> RRData<'a> {
     pub fn typ(&self) -> Type {
         match *self {

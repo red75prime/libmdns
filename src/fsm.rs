@@ -78,7 +78,10 @@ impl <AF: AddressFamily> FSM<AF> {
         trace!("received packet from {:?}", addr);
 
         let packet = match dns_parser::Packet::parse(buffer) {
-            Ok(packet) => packet,
+            Ok(packet) => {
+                trace!("packet: {}", packet);
+                packet
+            },
             Err(error) => {
                 warn!("couldn't parse packet from {:?}: {}", addr, error);
                 return;

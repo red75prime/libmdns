@@ -32,3 +32,38 @@ pub struct ResourceRecord<'a> {
     pub ttl: u32,
     pub data: RRData<'a>,
 }
+
+impl<'a> ::std::fmt::Display for Packet<'a> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        writeln!(fmt, "{:?}", self.header)?;
+        writeln!(fmt, "Questions")?;
+        for q in &self.questions {
+            writeln!(fmt, "  {}", q)?;
+        }
+        writeln!(fmt, "Answers")?;
+        for a in &self.answers {
+            writeln!(fmt, "  {}", a)?;
+        }
+        writeln!(fmt, "Nameservers")?;
+        for n in &self.nameservers {
+            writeln!(fmt, "  {}", n)?;
+        }
+        writeln!(fmt, "Additional")?;
+        for a in &self.additional {
+            writeln!(fmt, "  {}", a)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> ::std::fmt::Display for Question<'a> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(fmt, "{} {:?} {:?}{}", self.qname, self.qtype, self.qclass, if self.qu {" unicast"} else {""})
+    }
+}
+
+impl<'a> ::std::fmt::Display for ResourceRecord<'a> {
+    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(fmt, "{} {:?} {} {}", self.name, self.cls, self.ttl, self.data)
+    }
+}
