@@ -141,18 +141,6 @@ impl <AF: AddressFamily> FSM<AF> {
                         trace!("Sending unicast {}", packet);
                     }
                     Err(e) => {
-                        use std::fmt::Write;
-                        let mut buf = String::new();
-                        for &b in &response {
-                            if b.is_ascii_control() {
-                                write!(&mut buf, "\\{:02X}", b).unwrap();
-                            } else if b == b'\\' {
-                                write!(&mut buf, "\\\\").unwrap();
-                            } else {
-                                let ch: char = b.into();
-                                write!(&mut buf, "{}", ch).unwrap();
-                            }
-                        }
                         error!("Error parsing outgoing unicast packet {:?}: '{}'", e, buf);
                     }
                 }
