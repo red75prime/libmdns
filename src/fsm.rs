@@ -141,7 +141,7 @@ impl <AF: AddressFamily> FSM<AF> {
                         trace!("Sending unicast {}", packet);
                     }
                     Err(e) => {
-                        error!("Error parsing outgoing unicast packet {:?}: '{}'", e, buf);
+                        error!("Error parsing outgoing unicast packet {:?}: '{}'", e);
                     }
                 }
             }
