@@ -1,4 +1,5 @@
 use dns_parser::{self, QueryClass, QueryType, Name, RRData};
+use log;
 use std::collections::VecDeque;
 use std::io;
 use std::io::ErrorKind::WouldBlock;
@@ -29,6 +30,7 @@ pub enum Command {
 pub struct FSM<AF: AddressFamily> {
     socket: UdpSocket,
     services: Services,
+    //hostname: String,
     commands: mpsc::UnboundedReceiver<Command>,
     outgoing: VecDeque<(Vec<u8>, SocketAddr)>,
     _af: PhantomData<AF>,
@@ -115,12 +117,46 @@ impl <AF: AddressFamily> FSM<AF> {
 
         if !multicast_builder.is_empty() {
             let response = multicast_builder.build().unwrap_or_else(|x| x);
+            if log::max_level() == log::LevelFilter::Trace {
+                use dns_parser::Packet;
+                match Packet::parse(&response) {
+                    Ok(packet) => {
+                        trace!("Sending multicast {}", packet);
+                    }
+                    Err(e) => {
+                        error!("Error parsing outgoing multicast packet {:?}", e);
+                    }
+                }
+            }
             let addr = SocketAddr::new(AF::mdns_group(), MDNS_PORT);
             self.outgoing.push_back((response, addr));
         }
 
         if !unicast_builder.is_empty() {
             let response = unicast_builder.build().unwrap_or_else(|x| x);
+            if log::max_level() == log::LevelFilter::Trace {
+                use dns_parser::Packet;
+                match Packet::parse(&response) {
+                    Ok(packet) => {
+                        trace!("Sending unicast {}", packet);
+                    }
+                    Err(e) => {
+                        use std::fmt::Write;
+                        let mut buf = String::new();
+                        for &b in &response {
+                            if b.is_ascii_control() {
+                                write!(&mut buf, "\\{:02X}", b).unwrap();
+                            } else if b == b'\\' {
+                                write!(&mut buf, "\\\\").unwrap();
+                            } else {
+                                let ch: char = b.into();
+                                write!(&mut buf, "{}", ch).unwrap();
+                            }
+                        }
+                        error!("Error parsing outgoing unicast packet {:?}: '{}'", e, buf);
+                    }
+                }
+            }
             self.outgoing.push_back((response, addr));
         }
     }
@@ -136,15 +172,21 @@ impl <AF: AddressFamily> FSM<AF> {
             }
             QueryType::PTR => {
                 let mut found = false;
-                for svc in services.find_by_type(&question.qname) {
-                    builder = svc.add_ptr_rr(builder, DEFAULT_TTL);
-                    builder = svc.add_srv_rr(services.get_hostname(), builder, DEFAULT_TTL);
-                    builder = svc.add_txt_rr(builder, DEFAULT_TTL);
-                    builder = self.add_ip_rr(services.get_hostname(), builder, DEFAULT_TTL);
-                    found = true;
-                }
-                if !found {
-                    trace!("Not found. IN PTR {}", &question.qname);
+                if question.qname == Name::from_str("_services._dns-sd._udp.local").unwrap() {
+                    for t in services.types_iter() {
+                        builder = builder.add_answer(&question.qname, QueryClass::IN, DEFAULT_TTL, &RRData::PTR(t.clone()))
+                    }
+                } else {
+                    for svc in services.find_by_type(&question.qname) {
+                        builder = svc.add_ptr_rr(builder, DEFAULT_TTL);
+                        builder = svc.add_srv_rr(services.get_hostname(), builder, DEFAULT_TTL);
+                        builder = svc.add_txt_rr(builder, DEFAULT_TTL);
+                        builder = self.add_ip_rr(services.get_hostname(), builder, DEFAULT_TTL);
+                        found = true;
+                    }
+                    if !found {
+                        trace!("Not found. IN PTR {}", &question.qname);
+                    }
                 }
             }
             QueryType::SRV => {

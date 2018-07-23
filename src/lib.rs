@@ -169,6 +169,7 @@ impl Responder {
 
 impl Drop for Service {
     fn drop(&mut self) {
+        info!("mDNS service was dropped");
         let svc = self.services
             .write().unwrap()
             .unregister(self.id);

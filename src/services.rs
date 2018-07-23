@@ -50,6 +50,10 @@ impl ServicesInner {
         }
     }
 
+    pub fn types_iter(&self) -> ::std::collections::hash_map::Keys<Name<'static>, Vec<usize>> {
+        self.by_type.keys()
+    }
+
     pub fn register(&mut self, svc: ServiceData) -> usize {
         let mut id = thread_rng().gen::<usize>();
         while self.by_id.contains_key(&id) {
