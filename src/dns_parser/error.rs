@@ -40,5 +40,8 @@ quick_error! {
         WrongState {
             description("parser is in the wrong state")
         }
+        PartTooLong {
+            description("label in domain name is too long")
+        }
     }
 }

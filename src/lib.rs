@@ -129,23 +129,32 @@ impl Responder {
     }
 }
 
+fn into_io_error<E>(e: E) -> io::Error
+where
+    E: Into<Box<std::error::Error + Send + Sync>>,
+{
+    io::Error::new(io::ErrorKind::Other, e)
+}
+
 impl Responder {
-    pub fn register(&self, svc_type: String, svc_name: String, port: u16, txt: &[&str]) -> Service {
+    pub fn register(&self, svc_type: String, svc_name: String, port: u16, txt: &[&str]) -> Result<Service, io::Error> {
         let txt = if txt.is_empty() {
             vec![0]
         } else {
+            for s in txt {
+                if s.len() > 255 {
+                    return Err(into_io_error(format!("{:?} is too long for a TXT record", s)));
+                }
+            }
             txt.into_iter().flat_map(|entry| {
                 let entry = entry.as_bytes();
-                if entry.len() > 255 {
-                    panic!("{:?} is too long for a TXT record", entry);
-                }
                 std::iter::once(entry.len() as u8).chain(entry.into_iter().cloned())
             }).collect()
         };
 
         let svc = ServiceData {
-            typ: Name::from_str(format!("{}.local", svc_type)).unwrap(),
-            name: Name::from_str(format!("{}.{}.local", svc_name, svc_type)).unwrap(),
+            typ: Name::from_str(format!("{}.local", svc_type)).map_err(into_io_error)?,
+            name: Name::from_str(format!("{}.{}.local", svc_name, svc_type)).map_err(into_io_error)?,
             port: port,
             txt: txt,
         };
@@ -157,14 +166,13 @@ impl Responder {
             .write().unwrap()
             .register(svc);
 
-        Service {
+        Ok(Service {
             id: id,
             commands: self.commands.borrow().clone(),
             services: self.services.clone(),
             _shutdown: self.shutdown.clone(),
-        }
+        })
     }
-
 }
 
 impl Drop for Service {

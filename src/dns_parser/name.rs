@@ -64,6 +64,13 @@ impl<'a> Name<'a> {
     }
 
     pub fn from_str<T: Into<Cow<'static, str>>>(name: T) -> Result<Name<'a>, Error> {
+        let name = name.into();
+        // sanity check
+        for part in name.split('.') {
+            if part.len() > 63 {
+                return Err(Error::PartTooLong);
+            }
+        }
         Ok(Name::FromStr(name.into()))
     }
 
@@ -96,9 +103,6 @@ impl<'a> Name<'a> {
                     let ln = part.len();
                     if ln <= 63 {
                         try!(writer.write_u8(ln as u8));
-                        try!(writer.write(part.as_bytes()));
-                    } else if ln <= 1023 {
-                        try!(writer.write_u16::<BigEndian>(ln as u16 | 0b1100_0000_0000_0000));
                         try!(writer.write(part.as_bytes()));
                     } else {
                         return Err(io::Error::new(io::ErrorKind::Other, "DNS portion is too long"))
