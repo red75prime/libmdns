@@ -93,10 +93,16 @@ impl<'a> Name<'a> {
 
             Name::FromStr(ref name) => {
                 for part in name.split('.') {
-                    assert!(part.len() < 63);
-                    let ln = part.len() as u8;
-                    try!(writer.write_u8(ln));
-                    try!(writer.write(part.as_bytes()));
+                    let ln = part.len();
+                    if ln <= 63 {
+                        try!(writer.write_u8(ln as u8));
+                        try!(writer.write(part.as_bytes()));
+                    } else if ln <= 1023 {
+                        try!(writer.write_u16::<BigEndian>(ln as u16 | 0b1100_0000_0000_0000));
+                        try!(writer.write(part.as_bytes()));
+                    } else {
+                        return Err(io::Error::new(io::ErrorKind::Other, "DNS portion is too long"))
+                    }
                 }
                 try!(writer.write_u8(0));
 
