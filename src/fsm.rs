@@ -43,7 +43,7 @@ impl <AF: AddressFamily> FSM<AF> {
         info!("Binding socket");
         let std_socket = AF::bind()?;
         info!("Creating async socket");
-        let socket = UdpSocket::from_socket(std_socket, handle)?;
+        let socket = UdpSocket::from_std(std_socket, handle)?;
         let (tx, rx) = mpsc::unbounded();
 
         let fsm = FSM {
@@ -55,25 +55,6 @@ impl <AF: AddressFamily> FSM<AF> {
         };
 
         Ok((fsm, tx))
-    }
-
-    fn recv_packets(&mut self) -> io::Result<()> {
-        let mut buf = [0u8; 4096];
-        loop {
-            let (bytes, addr) = match self.socket.recv_from(&mut buf) {
-                Ok((bytes, addr)) => (bytes, addr),
-                Err(ref ioerr) if ioerr.kind() == WouldBlock => break,
-                Err(err) => return Err(err),
-            };
-
-            if bytes >= buf.len() {
-                warn!("buffer too small for packet from {:?}", addr);
-                continue;
-            }
-
-            self.handle_packet(&buf[..bytes], addr);
-        }
-        Ok(())
     }
 
     fn handle_packet(&mut self, buffer: &[u8], addr: SocketAddr) {
@@ -252,10 +233,17 @@ impl <AF: AddressFamily> Future for FSM<AF> {
             }
         }
 
-        while let Async::Ready(()) = self.socket.poll_read() {
-            self.recv_packets()?;
+        let mut buf = [0u8; 4096];
+        while let Async::Ready((bytes, addr)) = self.socket.poll_recv_from(&mut buf)? {
+            if bytes >= buf.len() {
+                warn!("buffer too small for packet from {:?}", addr);
+                continue;
+            }
+            self.handle_packet(&buf[..bytes], addr);            
         }
 
+        // non-lexical borrow checker is required for while let loop
+        #[allow(clippy::while_let_loop)]
         loop {
             if let Some(&(ref response, ref addr)) = self.outgoing.front() {
                 trace!("sending packet to {:?}", addr);

@@ -89,7 +89,7 @@ impl<'a> Name<'a> {
                         return Name::scan(&original[off..], original).unwrap().0.write_to(writer)
                     } else if byte & 0b1100_0000 == 0 {
                         let end = pos + byte as usize + 1;
-                        try!(writer.write(&labels[pos..end]));
+                        writer.write_all(&labels[pos..end])?;
                         pos = end;
                         continue;
                     } else {
@@ -102,13 +102,13 @@ impl<'a> Name<'a> {
                 for part in name.split('.') {
                     let ln = part.len();
                     if ln <= 63 {
-                        try!(writer.write_u8(ln as u8));
-                        try!(writer.write(part.as_bytes()));
+                        writer.write_u8(ln as u8)?;
+                        writer.write_all(part.as_bytes())?;
                     } else {
                         return Err(io::Error::new(io::ErrorKind::Other, "DNS portion is too long"))
                     }
                 }
-                try!(writer.write_u8(0));
+                writer.write_u8(0)?;
 
                 Ok(())
             }

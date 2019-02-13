@@ -81,19 +81,19 @@ impl<'a> RRData<'a> {
             RRData::A(ip) => writer.write_u32::<BigEndian>(ip.into()),
 
             RRData::AAAA(ip) => {
-                for segment in ip.segments().into_iter() {
-                    try!(writer.write_u16::<BigEndian>(*segment));
+                for &segment in ip.segments().iter() {
+                    writer.write_u16::<BigEndian>(segment)?;
                 }
                 Ok(())
             }
             RRData::SRV { priority, weight, port, ref target } => {
-                try!(writer.write_u16::<BigEndian>(priority));
-                try!(writer.write_u16::<BigEndian>(weight));
-                try!(writer.write_u16::<BigEndian>(port));
+                writer.write_u16::<BigEndian>(priority)?;
+                writer.write_u16::<BigEndian>(weight)?;
+                writer.write_u16::<BigEndian>(port)?;
                 target.write_to(writer)
             }
             RRData::MX { preference, ref exchange } => {
-                try!(writer.write_u16::<BigEndian>(preference));
+                writer.write_u16::<BigEndian>(preference)?;
                 exchange.write_to(writer)
             }
             RRData::TXT(data) => writer.write_all(data),

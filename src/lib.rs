@@ -9,7 +9,7 @@ extern crate multimap;
 extern crate net2;
 extern crate nix;
 extern crate rand;
-extern crate tokio_core as tokio;
+extern crate tokio;
 
 use futures::Future;
 use futures::sync::mpsc;
@@ -17,7 +17,7 @@ use std::io;
 use std::thread;
 use std::sync::{Arc, RwLock};
 use std::cell::RefCell;
-use tokio::reactor::{Handle, Core};
+use tokio::reactor::Handle;
 
 mod dns_parser;
 use dns_parser::Name;
@@ -54,40 +54,8 @@ pub struct Service {
 type ResponderTask = Box<Future<Item=(), Error=io::Error> + Send>;
 
 impl Responder {
-    fn setup_core() -> io::Result<(Core, ResponderTask, Responder)> {
-        let core = Core::new()?;
-        let (responder, task) = Self::with_handle(&core.handle())?;
-        Ok((core, task, responder))
-    }
-
-    pub fn new() -> io::Result<Responder> {
-        info!("Responder::new()");
-        let (tx, rx) = std::sync::mpsc::sync_channel(0);
-        thread::Builder::new()
-            .name("mdns-responder".to_owned())
-            .spawn(move || {
-                match Self::setup_core() {
-                    Ok((mut core, task, responder)) => {
-                        tx.send(Ok(responder)).expect("tx responder channel closed");
-                        core.run(task).expect("mdns thread failed");
-                    }
-                    Err(err) => {
-                        tx.send(Err(err)).expect("tx responder channel closed");
-                    }
-                }
-            })?;
-
-        rx.recv().expect("rx responder channel closed")
-    }
-
-    pub fn spawn(handle: &Handle) -> io::Result<Responder> {
-        info!("Responder::spawn()");
-        let (responder, task) = Responder::with_handle(handle)?;
-        handle.spawn(task.map_err(|e| {
-            warn!("mdns error {:?}", e);
-            ()
-        }));
-        Ok(responder)
+    pub fn new() -> io::Result<(Responder, ResponderTask)> {
+        Responder::with_handle(&Handle::default())
     }
 
     pub fn with_handle(handle: &Handle) -> io::Result<(Responder, ResponderTask)> {
@@ -195,10 +163,13 @@ impl Drop for Shutdown {
 
 #[derive(Clone)]
 struct CommandSender(Vec<mpsc::UnboundedSender<Command>>);
+
 impl CommandSender {
     fn send(&mut self, cmd: Command) {
         for tx in self.0.iter_mut() {
-            tx.unbounded_send(cmd.clone()).expect("responder died");
+            if let Err(e) = tx.unbounded_send(cmd.clone()) {
+                error!("CommandSender::send(): {:?}", e)
+            }
         }
     }
 

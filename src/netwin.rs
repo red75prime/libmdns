@@ -3,6 +3,7 @@ extern crate kernel32;
 extern crate socket2;
 
 use std;
+use std::mem;
 use std::net::IpAddr;
 use std::io;
 use self::winapi::{AF_UNSPEC, ERROR_SUCCESS, ERROR_BUFFER_OVERFLOW, ULONG, PVOID, DWORD, PCHAR};
@@ -47,27 +48,30 @@ pub fn getifaddrs() -> Vec<InterfaceAddress> {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 struct SOCKET_ADDRESS {
   lp_sockaddr: *const winapi::SOCKADDR,
   length: winapi::c_int
 }
 
 #[repr(C)]
-struct PIP_ADAPTER_UNICAST_ADDRESS {
+#[derive(Clone, Copy)]
+struct IP_ADAPTER_UNICAST_ADDRESS {
   length: ULONG,
   flags: DWORD,
-  next: *const PIP_ADAPTER_UNICAST_ADDRESS,
+  next: *const IP_ADAPTER_UNICAST_ADDRESS,
   address: SOCKET_ADDRESS
-  }
+}
 
 // Copied from: https://msdn.microsoft.com/en-us/library/windows/desktop/aa366058(v=vs.85).aspx
 #[repr(C)]
-struct PIP_ADAPTER_ADDRESSES {
+#[derive(Clone, Copy)]
+struct IP_ADAPTER_ADDRESSES {
   length: ULONG,
   if_index: DWORD,
-  next: *const PIP_ADAPTER_ADDRESSES,
+  next: *const IP_ADAPTER_ADDRESSES,
   adapter_name: PCHAR,
-  first_unicast_address: *const PIP_ADAPTER_UNICAST_ADDRESS,
+  first_unicast_address: *const IP_ADAPTER_UNICAST_ADDRESS,
 }
 
 #[link(name="iphlpapi")]
@@ -76,7 +80,7 @@ extern "system" {
     family: ULONG,
     flags: ULONG,
     reserved: PVOID,
-    addresses: *const PIP_ADAPTER_ADDRESSES,
+    addresses: *const IP_ADAPTER_ADDRESSES,
     size: *mut ULONG)
     -> ULONG;
 }
@@ -90,17 +94,21 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
           0,
           std::ptr::null_mut(),
           std::ptr::null_mut(),
-          &mut buf_len as *mut ULONG)
+          &mut buf_len)
       };
 
     assert!(result != ERROR_SUCCESS);
 
     if result != ERROR_BUFFER_OVERFLOW {
+      error!("Unexpected GetAdaptersAddresses error: {:#x}", result);
       return Err(io::Error::last_os_error());
     }
 
-    let mut adapters_addresses_buffer: Vec<u8> = vec![0; buf_len as usize];
-    let mut adapter_addresses_ptr = adapters_addresses_buffer.as_mut_ptr() as *const Vec<u8> as *const PIP_ADAPTER_ADDRESSES;
+    let ipa_size = mem::size_of::<IP_ADAPTER_ADDRESSES>();
+    let cnt = (buf_len as usize / ipa_size) + 1;
+    info!("ipa_size: {}, cnt: {}, buf_len: {}", ipa_size, cnt, buf_len);
+    let mut adapters_addresses_buffer: Vec<IP_ADAPTER_ADDRESSES> = vec![unsafe{ mem::uninitialized() }; cnt];
+    let adapter_addresses_ptr = adapters_addresses_buffer.as_mut_ptr();
     let result =
       unsafe {
         GetAdaptersAddresses(
@@ -112,10 +120,12 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
       };
 
     if result != ERROR_SUCCESS {
+      error!("Unexpected GetAdaptersAddresses error: {:#x}", result);
       return Err(io::Error::last_os_error());
     }
 
     let mut ret = vec![];
+    let mut adapter_addresses_ptr = adapters_addresses_buffer.as_ptr();
     while adapter_addresses_ptr != std::ptr::null_mut() {
       let unicast_addresses = unsafe{ get_unicast_addresses((*adapter_addresses_ptr).first_unicast_address) }?;
 
@@ -132,7 +142,7 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
     Ok(ret)
 }
 
-unsafe fn get_unicast_addresses(unicast_addresses_ptr: *const PIP_ADAPTER_UNICAST_ADDRESS) -> io::Result<Vec<IpAddr>> {
+unsafe fn get_unicast_addresses(unicast_addresses_ptr: *const IP_ADAPTER_UNICAST_ADDRESS) -> io::Result<Vec<IpAddr>> {
   let mut target_unicast_addresses = vec![];
 
   let mut unicast_address_ptr = unicast_addresses_ptr;
