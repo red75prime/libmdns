@@ -18,10 +18,10 @@ pub fn main() {
         80,
         &["path=/"]);
 
+    drop(responder);
     let never = 
         future::empty()
         .then(|_: Result<(), ()>| -> Result<(), ()> {
-            let _responder = responder;
             let _svc = svc;
             Ok(())
         });
