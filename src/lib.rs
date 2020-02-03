@@ -66,7 +66,9 @@ impl Responder {
 
         let services = Arc::new(RwLock::new(ServicesInner::new(hostname)));
 
+        info!("Creating V4 FSM");
         let v4 = FSM::<Inet>::new(handle, &services);
+        info!("Creating V6 FSM");
         let v6 = FSM::<Inet6>::new(handle, &services);
 
         let (task, commands) : (ResponderTask, _) = match (v4, v6) {
@@ -82,7 +84,10 @@ impl Responder {
                 (Box::new(v4_task), vec![v4_command])
             }
 
-            (Err(err), _) => return Err(err),
+            (Err(err), _) => {
+                error!("Failed to registed IPv4 receiver: {:?}", err);
+                return Err(err);
+            }
         };
 
         let commands = CommandSender(commands);
