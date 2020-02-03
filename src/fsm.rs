@@ -2,7 +2,6 @@ use dns_parser::{self, QueryClass, QueryType, Name, RRData};
 use log;
 use std::collections::VecDeque;
 use std::io;
-use std::io::ErrorKind::WouldBlock;
 use std::marker::PhantomData;
 use std::net::{IpAddr, SocketAddr};
 use futures::{Poll, Async, Future, Stream};
@@ -239,7 +238,7 @@ impl <AF: AddressFamily> Future for FSM<AF> {
                 warn!("buffer too small for packet from {:?}", addr);
                 continue;
             }
-            self.handle_packet(&buf[..bytes], addr);            
+            self.handle_packet(&buf[..bytes], addr);
         }
 
         // non-lexical borrow checker is required for while let loop
@@ -248,9 +247,9 @@ impl <AF: AddressFamily> Future for FSM<AF> {
             if let Some(&(ref response, ref addr)) = self.outgoing.front() {
                 trace!("sending packet to {:?}", addr);
 
-                match self.socket.send_to(response, addr) {
-                    Ok(_) => (),
-                    Err(ref ioerr) if ioerr.kind() == WouldBlock => break,
+                match self.socket.poll_send_to(response, addr) {
+                    Ok(Async::Ready(_)) => (),
+                    Ok(Async::NotReady) => break,
                     Err(err) => warn!("error sending packet {:?}", err),
                 }
             } else {

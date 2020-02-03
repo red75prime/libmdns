@@ -128,13 +128,13 @@ impl<'a> RRData<'a> {
                 )))
             }
             Type::CNAME => {
-                Ok(RRData::CNAME(try!(Name::scan(rdata, original)).0))
+                Ok(RRData::CNAME(Name::scan(rdata, original)?.0))
             }
             Type::NS => {
-                Ok(RRData::NS(try!(Name::scan(rdata, original)).0))
+                Ok(RRData::NS(Name::scan(rdata, original)?.0))
             }
             Type::PTR => {
-                Ok(RRData::PTR(try!(Name::scan(rdata, original)).0))
+                Ok(RRData::PTR(Name::scan(rdata, original)?.0))
             }
             Type::MX => {
                 if rdata.len() < 3 {
@@ -142,7 +142,7 @@ impl<'a> RRData<'a> {
                 }
                 Ok(RRData::MX {
                     preference: BigEndian::read_u16(&rdata[..2]),
-                    exchange: try!(Name::scan(&rdata[2..], original)).0,
+                    exchange: Name::scan(&rdata[2..], original)?.0,
                 })
             }
             Type::SRV => {
@@ -153,7 +153,7 @@ impl<'a> RRData<'a> {
                     priority: BigEndian::read_u16(&rdata[..2]),
                     weight: BigEndian::read_u16(&rdata[2..4]),
                     port: BigEndian::read_u16(&rdata[4..6]),
-                    target: try!(Name::scan(&rdata[6..], original)).0,
+                    target: Name::scan(&rdata[6..], original)?.0,
                 })
             }
             Type::TXT => Ok(RRData::TXT(rdata)),

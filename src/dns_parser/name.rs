@@ -45,7 +45,7 @@ impl<'a> Name<'a> {
                     return Err(Error::UnexpectedEOF);
                 }
                 // Validate referred to location
-                try!(Name::scan(&original[off..], original));
+                Name::scan(&original[off..], original)?;
                 return Ok((Name::FromPacket { labels: &data[..pos+2], original: original }, pos + 2));
             } else if byte & 0b1100_0000 == 0 {
                 let end = pos + byte as usize + 1;
@@ -81,7 +81,7 @@ impl<'a> Name<'a> {
                 loop {
                     let byte = labels[pos];
                     if byte == 0 {
-                        try!(writer.write_u8(0));
+                        writer.write_u8(0)?;
                         return Ok(());
                     } else if byte & 0b1100_0000 == 0b1100_0000 {
                         let off = (BigEndian::read_u16(&labels[pos..pos+2])
@@ -129,16 +129,16 @@ impl<'a> fmt::Display for Name<'a> {
                         let off = (BigEndian::read_u16(&labels[pos..pos+2])
                                    & !0b1100_0000_0000_0000) as usize;
                         if pos != 0 {
-                            try!(fmt.write_char('.'));
+                            fmt.write_char('.')?;
                         }
                         return fmt::Display::fmt(
                             &Name::scan(&original[off..], original).unwrap().0, fmt)
                     } else if byte & 0b1100_0000 == 0 {
                         if pos != 0 {
-                            try!(fmt.write_char('.'));
+                            fmt.write_char('.')?;
                         }
                         let end = pos + byte as usize + 1;
-                        try!(fmt.write_str(from_utf8(&labels[pos+1..end]).unwrap()));
+                        fmt.write_str(from_utf8(&labels[pos+1..end]).unwrap())?;
                         pos = end;
                         continue;
                     } else {

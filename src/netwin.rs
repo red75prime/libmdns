@@ -74,6 +74,18 @@ struct IP_ADAPTER_ADDRESSES {
   first_unicast_address: *const IP_ADAPTER_UNICAST_ADDRESS,
 }
 
+impl Default for IP_ADAPTER_ADDRESSES {
+  fn default() -> Self {
+    IP_ADAPTER_ADDRESSES {
+      length: 0,
+      if_index: 0,
+      next: std::ptr::null(),
+      adapter_name: std::ptr::null_mut(),
+      first_unicast_address: std::ptr::null(),
+    }
+  }
+}
+
 #[link(name="iphlpapi")]
 extern "system" {
   fn GetAdaptersAddresses(
@@ -107,7 +119,7 @@ fn getifaddrs_int() -> io::Result<Vec<InterfaceAddress>> {
     let ipa_size = mem::size_of::<IP_ADAPTER_ADDRESSES>();
     let cnt = (buf_len as usize / ipa_size) + 1;
     info!("ipa_size: {}, cnt: {}, buf_len: {}", ipa_size, cnt, buf_len);
-    let mut adapters_addresses_buffer: Vec<IP_ADAPTER_ADDRESSES> = vec![unsafe{ mem::uninitialized() }; cnt];
+    let mut adapters_addresses_buffer: Vec<IP_ADAPTER_ADDRESSES> = vec![Default::default(); cnt];
     let adapter_addresses_ptr = adapters_addresses_buffer.as_mut_ptr();
     let result =
       unsafe {

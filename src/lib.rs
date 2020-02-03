@@ -14,7 +14,6 @@ extern crate tokio;
 use futures::Future;
 use futures::sync::mpsc;
 use std::io;
-use std::thread;
 use std::sync::{Arc, RwLock};
 use std::cell::RefCell;
 use tokio::reactor::Handle;
@@ -51,7 +50,7 @@ pub struct Service {
     _shutdown: Arc<Shutdown>,
 }
 
-type ResponderTask = Box<Future<Item=(), Error=io::Error> + Send>;
+type ResponderTask = Box<dyn Future<Item=(), Error=io::Error> + Send>;
 
 impl Responder {
     pub fn new() -> io::Result<(Responder, ResponderTask)> {
@@ -60,7 +59,7 @@ impl Responder {
 
     pub fn with_handle(handle: &Handle) -> io::Result<(Responder, ResponderTask)> {
         info!("Responder::with_handle()");
-        let mut hostname = try!(net::gethostname());
+        let mut hostname = net::gethostname()?;
         if !hostname.ends_with(".local") {
             hostname.push_str(".local");
         }
@@ -99,7 +98,7 @@ impl Responder {
 
 fn into_io_error<E>(e: E) -> io::Error
 where
-    E: Into<Box<std::error::Error + Send + Sync>>,
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     io::Error::new(io::ErrorKind::Other, e)
 }
