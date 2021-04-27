@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::slice;
 use multimap::MultiMap;
 use rand::{Rng, thread_rng};
-use dns_parser::{self, QueryClass, Name, RRData};
+use crate::dns_parser::{self, QueryClass, Name, RRData};
 
 pub type AnswerBuilder = dns_parser::Builder<dns_parser::Answers>;
 

@@ -1,25 +1,15 @@
-#[macro_use(quick_error)] extern crate quick_error;
-
 #[macro_use] extern crate log;
 
-extern crate byteorder;
-extern crate futures;
-extern crate libc;
-extern crate multimap;
-extern crate net2;
-extern crate nix;
-extern crate rand;
-extern crate tokio;
-
-use futures::Future;
-use futures::sync::mpsc;
+use futures::{future, Future, FutureExt};
+use futures::channel::mpsc;
 use std::io;
+use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 use std::cell::RefCell;
-use tokio::reactor::Handle;
+use tokio::runtime::Handle;
 
 mod dns_parser;
-use dns_parser::Name;
+use crate::dns_parser::Name;
 
 mod address_family;
 mod fsm;
@@ -30,9 +20,9 @@ mod net;
 #[cfg(not(windows))]
 mod net;
 
-use address_family::{Inet, Inet6};
-use services::{ServicesInner, Services, ServiceData};
-use fsm::{Command, FSM};
+use crate::address_family::{Inet, Inet6};
+use crate::services::{ServicesInner, Services, ServiceData};
+use crate::fsm::{Command, FSM};
 
 const DEFAULT_TTL : u32 = 60;
 const MDNS_PORT : u16 = 5353;
@@ -50,11 +40,11 @@ pub struct Service {
     _shutdown: Arc<Shutdown>,
 }
 
-type ResponderTask = Box<dyn Future<Item=(), Error=io::Error> + Send>;
+type ResponderTask = Pin<Box<dyn Send + Future<Output=Result<(), io::Error>>>>;
 
 impl Responder {
     pub fn new() -> io::Result<(Responder, ResponderTask)> {
-        Responder::with_handle(&Handle::default())
+        Responder::with_handle(&Handle::current())
     }
 
     pub fn with_handle(handle: &Handle) -> io::Result<(Responder, ResponderTask)> {
@@ -73,15 +63,22 @@ impl Responder {
 
         let (task, commands) : (ResponderTask, _) = match (v4, v6) {
             (Ok((v4_task, v4_command)), Ok((v6_task, v6_command))) => {
-                let task = v4_task.join(v6_task).map(|((),())| ());
-                let task = Box::new(task);
+                let task = future::join(v4_task, v6_task)
+                    .map(|results| {
+                        match results {
+                            (Err(e), _) => Err(e),
+                            (_, Err(e)) => Err(e),
+                            (Ok(()), Ok(())) => Ok(()),
+                        }
+                    });
+                let task = Box::pin(task);
                 let commands = vec![v4_command, v6_command];
                 (task, commands)
             }
 
             (Ok((v4_task, v4_command)), Err(err)) => {
                 warn!("Failed to register IPv6 receiver: {:?}", err);
-                (Box::new(v4_task), vec![v4_command])
+                (Box::pin(v4_task), vec![v4_command])
             }
 
             (Err(err), _) => {

@@ -87,7 +87,7 @@ fn parse_record<'a>(data: &'a [u8], offset: &mut usize) -> Result<ResourceRecord
 #[cfg(test)]
 mod test {
 
-    use dns_parser::{Opcode, ResponseCode};
+    use crate::dns_parser::{Opcode, ResponseCode};
     use std::net::{Ipv4Addr, Ipv6Addr};
     use super::*;
 

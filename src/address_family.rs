@@ -9,6 +9,8 @@ pub enum Inet {}
 pub enum Inet6 {}
 
 pub trait AddressFamily {
+    const MAX_PACKET_SIZE: usize;
+
     fn bind() -> io::Result<UdpSocket> {
         let addr = SocketAddr::new(Self::any_addr(), MDNS_PORT);
         info!("Socket builder");
@@ -41,6 +43,8 @@ pub trait AddressFamily {
 }
 
 impl AddressFamily for Inet {
+    const MAX_PACKET_SIZE: usize = 65535;
+
     fn socket_builder() -> io::Result<UdpBuilder> {
         UdpBuilder::new_v4()
     }
@@ -62,6 +66,8 @@ impl AddressFamily for Inet {
 }
 
 impl AddressFamily for Inet6 {
+    const MAX_PACKET_SIZE: usize = 65535;
+
     fn socket_builder() -> io::Result<UdpBuilder> {
         UdpBuilder::new_v6()
     }

@@ -1,24 +1,26 @@
 [package]
 name = "libmdns"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Casey Robinson <casey@rampantmonkey.com>"]
 
 description = "rust mdns library"
 repository = "https://github.com/rampantmonkey/libmdns"
 readme = "README.md"
 license = "MIT"
+edition = "2018"
 
 [dependencies]
 byteorder = "1.2"
-futures = "0.1"
+futures = "0.3"
 libc = "0.2"
 log = "0.4"
-multimap = "0.4"
+multimap = "0.8"
 net2 = "0.2"
 nix = "0.9"
 rand = "0.6"
-tokio = "0.1"
-quick-error = "1.2"
+tokio = { version = "1.5", features = ["rt", "net", "macros"] }
+quick-error = "2.0"
+pin-project = "1.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2.8"
@@ -27,3 +29,10 @@ socket2 = "0.2.2"
 
 [dev-dependencies]
 env_logger = "0.5"
+
+[features]
+example = ["tokio/rt-multi-thread", "tokio/time"]
+
+[[example]]
+name = "register"
+required-features = ["example"]

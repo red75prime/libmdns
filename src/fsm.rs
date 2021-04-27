@@ -1,18 +1,22 @@
-use dns_parser::{self, QueryClass, QueryType, Name, RRData};
+use crate::dns_parser::{self, QueryClass, QueryType, Name, RRData};
 use log;
 use std::collections::VecDeque;
 use std::io;
 use std::marker::PhantomData;
 use std::net::{IpAddr, SocketAddr};
-use futures::{Poll, Async, Future, Stream};
-use futures::sync::mpsc;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use futures::{Future, Stream};
+use futures::channel::mpsc;
+use pin_project::pin_project;
+use tokio::pin;
 use tokio::net::UdpSocket;
-use tokio::reactor::Handle;
+use tokio::runtime::Handle;
 
 use super::{DEFAULT_TTL, MDNS_PORT};
-use address_family::AddressFamily;
-use net;
-use services::{Services, ServiceData};
+use crate::address_family::AddressFamily;
+use crate::net;
+use crate::services::{Services, ServiceData};
 
 pub type AnswerBuilder = dns_parser::Builder<dns_parser::Answers>;
 
@@ -26,36 +30,13 @@ pub enum Command {
     Shutdown,
 }
 
-pub struct FSM<AF: AddressFamily> {
-    socket: UdpSocket,
+struct FSMState<AF> {
     services: Services,
-    //hostname: String,
-    commands: mpsc::UnboundedReceiver<Command>,
     outgoing: VecDeque<(Vec<u8>, SocketAddr)>,
     _af: PhantomData<AF>,
 }
 
-impl <AF: AddressFamily> FSM<AF> {
-    pub fn new(handle: &Handle, services: &Services)
-        -> io::Result<(FSM<AF>, mpsc::UnboundedSender<Command>)>
-    {
-        info!("Binding socket");
-        let std_socket = AF::bind()?;
-        info!("Creating async socket");
-        let socket = UdpSocket::from_std(std_socket, handle)?;
-        let (tx, rx) = mpsc::unbounded();
-
-        let fsm = FSM {
-            socket: socket,
-            services: services.clone(),
-            commands: rx,
-            outgoing: VecDeque::new(),
-            _af: PhantomData,
-        };
-
-        Ok((fsm, tx))
-    }
-
+impl<AF: AddressFamily> FSMState<AF> {
     fn handle_packet(&mut self, buffer: &[u8], addr: SocketAddr) {
         trace!("received packet from {:?}", addr);
 
@@ -98,7 +79,7 @@ impl <AF: AddressFamily> FSM<AF> {
         if !multicast_builder.is_empty() {
             let response = multicast_builder.build().unwrap_or_else(|x| x);
             if log::max_level() == log::LevelFilter::Trace {
-                use dns_parser::Packet;
+                use crate::dns_parser::Packet;
                 match Packet::parse(&response) {
                     Ok(packet) => {
                         trace!("Sending multicast {}", packet);
@@ -115,7 +96,7 @@ impl <AF: AddressFamily> FSM<AF> {
         if !unicast_builder.is_empty() {
             let response = unicast_builder.build().unwrap_or_else(|x| x);
             if log::max_level() == log::LevelFilter::Trace {
-                use dns_parser::Packet;
+                use crate::dns_parser::Packet;
                 match Packet::parse(&response) {
                     Ok(packet) => {
                         trace!("Sending unicast {}", packet);
@@ -215,50 +196,105 @@ impl <AF: AddressFamily> FSM<AF> {
     }
 }
 
+#[pin_project]
+pub struct FSM<AF> {
+    socket: UdpSocket,
+    buffer: Vec<u8>,
+    #[pin]
+    commands: mpsc::UnboundedReceiver<Command>,
+    state: FSMState<AF>,
+}
+
+impl <AF: AddressFamily> FSM<AF> {
+    pub fn new(handle: &Handle, services: &Services)
+        -> io::Result<(FSM<AF>, mpsc::UnboundedSender<Command>)>
+    {
+        info!("Binding socket");
+        let std_socket = AF::bind()?;
+        info!("Setting socket as nonblocking");
+        std_socket.set_nonblocking(true)?;
+        info!("Creating async socket");
+        let _rt_guard = handle.enter();
+        let socket = UdpSocket::from_std(std_socket)?;
+        let (tx, rx) = mpsc::unbounded();
+
+        let fsm = FSM {
+            socket: socket,
+            buffer: vec![0; AF::MAX_PACKET_SIZE],
+            commands: rx,
+            state: FSMState {
+                services: services.clone(),
+                outgoing: VecDeque::new(),
+                _af: PhantomData,
+            },
+        };
+
+        Ok((fsm, tx))
+    }
+
+    fn commands<'a>(self: &'a mut Pin<&mut Self>) -> Pin<&'a mut mpsc::UnboundedReceiver<Command>>  {
+        self.as_mut().project().commands
+    }
+
+    fn state<'a>(self: &'a mut Pin<&mut Self>) -> &'a mut FSMState<AF>  {
+        self.as_mut().project().state
+    }
+}
+
+
+
 impl <AF: AddressFamily> Future for FSM<AF> {
-    type Item = ();
-    type Error = io::Error;
-    fn poll(&mut self) -> Poll<(), io::Error> {
-        while let Async::Ready(cmd) = self.commands.poll().unwrap() {
+    type Output = Result<(), io::Error>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        trace!("FSM poll");
+        while let Poll::Ready(cmd) = self.commands().poll_next(&mut *cx) {
             match cmd {
-                Some(Command::Shutdown) => return Ok(Async::Ready(())),
+                Some(Command::Shutdown) => return Poll::Ready(Ok(())),
                 Some(Command::SendUnsolicited { svc, ttl, include_ip }) => {
-                    self.send_unsolicited(&svc, ttl, include_ip);
+                    self.state().send_unsolicited(&svc, ttl, include_ip);
                 }
                 None => {
                     warn!("responder disconnected without shutdown");
-                    return Ok(Async::Ready(()));
+                    return Poll::Ready(Ok(()));
                 }
             }
         }
 
-        let mut buf = [0u8; 4096];
-        while let Async::Ready((bytes, addr)) = self.socket.poll_recv_from(&mut buf)? {
-            if bytes >= buf.len() {
-                warn!("buffer too small for packet from {:?}", addr);
-                continue;
-            }
-            self.handle_packet(&buf[..bytes], addr);
+        loop {
+            trace!("FSM packet recieve loop");
+            let this = self.as_mut().project();
+            let buf = &mut this.buffer[..];
+            let mut buf = tokio::io::ReadBuf::new(buf);
+            // We use maximum UDP packet size for buf
+            // So there's no need to handle different ways that different platforms use to signal insufficient buffer size
+            let addr = match this.socket.poll_recv_from(&mut *cx, &mut buf)? {
+                Poll::Pending => {
+                    // No more incoming packets, proceed to sending
+                    break;
+                }
+                Poll::Ready(addr) => {
+                    addr
+                }
+            };
+            this.state.handle_packet(buf.filled(), addr);
         }
 
         // non-lexical borrow checker is required for while let loop
         #[allow(clippy::while_let_loop)]
-        loop {
-            if let Some(&(ref response, ref addr)) = self.outgoing.front() {
-                trace!("sending packet to {:?}", addr);
+        let this = self.project();
+        while let Some((response, addr)) = this.state.outgoing.front() {
+            trace!("sending packet to {:?}", addr);
 
-                match self.socket.poll_send_to(response, addr) {
-                    Ok(Async::Ready(_)) => (),
-                    Ok(Async::NotReady) => break,
-                    Err(err) => warn!("error sending packet {:?}", err),
-                }
-            } else {
-                break;
+            match this.socket.poll_send_to(&mut *cx, response, *addr) {
+                Poll::Pending => { break }
+                Poll::Ready(Ok(_)) => {}
+                Poll::Ready(Err(err)) => { warn!("error sending packet {:?}", err) }
             }
-
-            self.outgoing.pop_front();
+            this.state.outgoing.pop_front();
         }
 
-        Ok(Async::NotReady)
+        // It's OK to return Pending here, some of the polls above registered wake interest
+        Poll::Pending
     }
 }
